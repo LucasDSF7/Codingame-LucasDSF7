@@ -13,7 +13,7 @@ class Board(input: Scanner) {
 
     private fun createBoard(input: Scanner): MutableList<MutableList<Char>> {
         val board: MutableList<MutableList<Char>> = mutableListOf()
-        for (i in 0 until height) {
+        (0 until height).forEach {_ ->
             val row = input.next()
             val auxList: MutableList<Char> = mutableListOf()
             for (col in row) {
@@ -105,9 +105,9 @@ class Ball(var i: Int, var j: Int, var shotCount: Int, val board: Board) {
             for (y in yRange) {
                 val char = board.board[x][y]
                 val newChar = if (listOf(x, y) in board.hazardsPos) 'X' else if (listOf(x, y) == this.initPos) this.shotCount.digitToChar() else if (char == 'H') 'H' else '.'
-                if (listOf(x, y) == this.initPos) {
+                /*if (listOf(x, y) == this.initPos) {
                     println("Called from unChangeBoard. newChar = $newChar")
-                }
+                }*/
                 board.board[x][y] = newChar
             }
         }
@@ -124,7 +124,7 @@ class Ball(var i: Int, var j: Int, var shotCount: Int, val board: Board) {
 
     fun unGetRange(from: Int, to: Int): IntProgression {
         return if (from == to) from..to
-        else if (from < to) from  until to + 1 else from - 1 downTo to
+        else if (from < to) from  until to + 1 else from downTo to
     }
 }
 
@@ -140,18 +140,18 @@ fun dps(board: Board): Boolean {
         }
         else if (ball.shotCount == 0) return false
         for (move in ball.moves.keys) {
-            for (row in board.board) {
+            /*for (row in board.board) {
                 println(row)
             }
-            println("$move------- ${ball.initPos}")
+            println("$move------- ${ball.initPos}")*/
             if (ball.move(move)) {
-                println("now [${ball.i}, ${ball.j}]")
+                /*println("now [${ball.i}, ${ball.j}]")*/
                 if (dps(board)) return true
                 ball.unMove(move)
-                for (row in board.board) {
+                /*for (row in board.board) {
                     println(row)
                 }
-                println("now [${ball.i}, ${ball.j}]\n")
+                println("now [${ball.i}, ${ball.j}]\n")*/
             }
         }
         return false
