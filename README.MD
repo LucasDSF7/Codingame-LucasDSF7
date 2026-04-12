@@ -2,4 +2,4 @@
 
 Repo with puzzle solutions from Codingame: https://www.codingame.com
 
-Each package inside this repo represents a puzzle with same name in Codingame, replacing dashs for spaces.
+Each package inside this repo represents a puzzle with same name in Codingame, replacing dashs for spaces. Just copy and paste the code inside codingame IDE to solve the puzzle.
