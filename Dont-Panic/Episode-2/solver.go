@@ -13,10 +13,59 @@ This solution creates a simulation of the Improbability Drive,
 
 var nbFloors, width, nbRounds, exitFloor, exitPos, nbTotalClones, nbAdditionalElevators, nbElevators, cloneFloor, generatorPos int
 
+type Path struct {
+	Floor                 int
+	Pos                   int
+	Direction             int
+	Cost                  int
+	NbAdditionalElevators int
+	Moves                 map[int]int
+}
+
+func (p *Path) GetMoves(d *Drive) []int {
+	moves := []int{p.Pos}
+	leftPos, rightPos := 0, width-1
+	elevators := d.Elevators[p.Floor]
+	for _, elevator := range elevators {
+		if elevator > leftPos && elevator < p.Pos {
+			leftPos = elevator
+		}
+		if elevator < rightPos && elevator > p.Pos {
+			rightPos = elevator
+		}
+	}
+	if leftPos != 0 {
+		moves = append(moves, leftPos)
+	}
+	if rightPos != width-1 {
+		moves = append(moves, rightPos)
+	}
+	if exitPos > leftPos && exitPos < rightPos {
+		moves = append(moves, exitPos)
+	}
+	return moves
+}
+
+func (p Path) NewPath(move int, d *Drive) Path {
+	p.Moves[p.Floor] = move
+	cost := (move - p.Pos) * p.Direction
+	var addCost int
+	var subElevator int
+	if d.Grid[p.Floor][move] != "^" {
+		addCost = 3
+		subElevator = -1
+	}
+	if cost > 0 {
+		return Path{p.Floor + 1, move, p.Direction, p.Cost + cost + addCost, p.NbAdditionalElevators + subElevator, p.Moves}
+	}
+	return Path{p.Floor + 1, move, p.Direction * -1, p.Cost + 3 + addCost - cost, p.NbAdditionalElevators + subElevator, p.Moves}
+}
+
 type Drive struct {
-	Grid     [][]string
-	Rounds   int
-	Commands []string
+	Grid      [][]string
+	Rounds    int
+	Commands  []string
+	Elevators map[int][]int
 }
 
 func (d Drive) String() string {
@@ -48,10 +97,10 @@ func NewDrive(elevators map[int][]int) Drive {
 		}
 		grid[i] = floor
 	}
-	return Drive{grid, 0, []string{}}
+	return Drive{grid, 0, []string{}, elevators}
 }
 
-func (d *Drive) PruneDrive(elevators map[int][]int) {
+func (d *Drive) PruneDrive() {
 	minMax := [2]int{exitPos, exitPos}
 	for i := nbFloors - 1; i >= 0; i-- {
 		if i > exitFloor {
@@ -61,14 +110,14 @@ func (d *Drive) PruneDrive(elevators map[int][]int) {
 			continue
 		}
 		newMin, newMax := 0, width-1
-		if _, ok := elevators[i]; !ok {
+		if _, ok := d.Elevators[i]; !ok {
 			continue
 		}
-		for _, pos := range elevators[i] {
+		for _, pos := range d.Elevators[i] {
 			if pos > newMin && pos < minMax[0] {
 				newMin = pos
 			}
-			if pos < newMax && pos >= minMax[1] {
+			if pos < newMax && pos > minMax[1] {
 				newMax = pos
 			}
 		}
@@ -82,6 +131,25 @@ func (d *Drive) PruneDrive(elevators map[int][]int) {
 			d.Grid[i][j] = "X"
 		}
 		minMax = [2]int{newMin, newMax}
+	}
+}
+
+func (d *Drive) Dfs(path Path) {
+	tile := d.Grid[path.Floor][path.Pos]
+	if tile == "X" {
+		return
+	}
+	if tile == "E" {
+		fmt.Printf("%+v\n", path)
+		return
+	}
+	moves := path.GetMoves(d)
+	// fmt.Printf("%+v\nMoves: %v\n\n", path, moves)
+	for _, move := range moves {
+		if d.Grid[path.Floor][move] != "^" && path.NbAdditionalElevators == 0 {
+			continue
+		}
+		d.Dfs(path.NewPath(move, d))
 	}
 }
 
@@ -217,8 +285,10 @@ func main() {
 	// fmt.Fprintln(os.Stderr, "Debug messages...")
 	drive := NewDrive(elevators)
 	fmt.Fprintln(os.Stderr, drive)
-	drive.PruneDrive(elevators)
+	drive.PruneDrive()
 	fmt.Fprintln(os.Stderr, drive)
+	path := Path{0, generatorPos, 1, 0, nbAdditionalElevators, make(map[int]int)}
+	drive.Dfs(path)
 	// Dfs(&drive, make([]Clone, 0, nbTotalClones))
 	// for _, cmd := range drive.Commands {
 	// 	fmt.Println(cmd)
