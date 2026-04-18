@@ -1,15 +1,14 @@
 package main
 
+/*
+Copy and paste this code at https://www.codingame.com/ide/puzzle/don't-panic-episode-2
+*/
+
 import (
 	"fmt"
 	"os"
 	"strings"
 )
-
-/*
-This solution creates a simulation of the Improbability Drive,
- thus the codingame loop is not necessary
-*/
 
 var nbFloors, width, nbRounds, exitFloor, exitPos, nbTotalClones, nbAdditionalElevators, nbElevators, cloneFloor, generatorPos int
 
@@ -22,9 +21,13 @@ type Path struct {
 	Moves                 map[int]int
 }
 
-func (p *Path) GetMoves(d *Drive) []int {
+func (p Path) GetMoves(d *Drive) []int {
+	if d.Grid[p.Floor][p.Pos] == "^" {
+		return []int{p.Pos}
+	}
 	moves := []int{p.Pos}
 	leftPos, rightPos := 0, width-1
+	upElevators := d.Elevators[p.Floor+1]
 	elevators := d.Elevators[p.Floor]
 	for _, elevator := range elevators {
 		if elevator > leftPos && elevator < p.Pos {
@@ -43,11 +46,20 @@ func (p *Path) GetMoves(d *Drive) []int {
 	if exitPos > leftPos && exitPos < rightPos {
 		moves = append(moves, exitPos)
 	}
+	for _, up := range upElevators {
+		if up > leftPos && up < rightPos {
+			moves = append(moves, up)
+		}
+	}
 	return moves
 }
 
 func (p Path) NewPath(move int, d *Drive) Path {
-	p.Moves[p.Floor] = move
+	newMoves := make(map[int]int)
+	for k, v := range p.Moves {
+		newMoves[k] = v
+	}
+	newMoves[p.Floor] = move
 	cost := (move - p.Pos) * p.Direction
 	var addCost int
 	var subElevator int
@@ -55,17 +67,17 @@ func (p Path) NewPath(move int, d *Drive) Path {
 		addCost = 3
 		subElevator = -1
 	}
-	if cost > 0 {
-		return Path{p.Floor + 1, move, p.Direction, p.Cost + cost + addCost, p.NbAdditionalElevators + subElevator, p.Moves}
+	if cost >= 0 {
+		return Path{p.Floor + 1, move, p.Direction, p.Cost + cost + addCost, p.NbAdditionalElevators + subElevator, newMoves}
 	}
-	return Path{p.Floor + 1, move, p.Direction * -1, p.Cost + 3 + addCost - cost, p.NbAdditionalElevators + subElevator, p.Moves}
+	return Path{p.Floor + 1, move, p.Direction * -1, p.Cost + 3 + addCost - cost, p.NbAdditionalElevators + subElevator, newMoves}
 }
 
 type Drive struct {
 	Grid      [][]string
 	Rounds    int
-	Commands  []string
 	Elevators map[int][]int
+	BestPath  Path
 }
 
 func (d Drive) String() string {
@@ -73,11 +85,11 @@ func (d Drive) String() string {
 	for i := len(d.Grid) - 1; i >= 0; i-- {
 		str.WriteString(strings.Join(d.Grid[i], "") + "\n")
 	}
-	fmt.Fprintf(&str, "Rounds %d\nCommands:%v\n", d.Rounds, d.Commands)
+	fmt.Fprintf(&str, "Rounds %d\n", d.Rounds)
 	return str.String()
 }
 
-func NewDrive(elevators map[int][]int) Drive {
+func NewDrive(elevators map[int][]int) *Drive {
 	grid := make([][]string, nbFloors)
 	for i := 0; i < nbFloors; i++ {
 		floor := make([]string, width)
@@ -97,7 +109,7 @@ func NewDrive(elevators map[int][]int) Drive {
 		}
 		grid[i] = floor
 	}
-	return Drive{grid, 0, []string{}, elevators}
+	return &Drive{grid, 0, elevators, Path{Cost: 1000}}
 }
 
 func (d *Drive) PruneDrive() {
@@ -140,11 +152,12 @@ func (d *Drive) Dfs(path Path) {
 		return
 	}
 	if tile == "E" {
-		fmt.Printf("%+v\n", path)
+		if path.Cost < d.BestPath.Cost {
+			d.BestPath = path
+		}
 		return
 	}
 	moves := path.GetMoves(d)
-	// fmt.Printf("%+v\nMoves: %v\n\n", path, moves)
 	for _, move := range moves {
 		if d.Grid[path.Floor][move] != "^" && path.NbAdditionalElevators == 0 {
 			continue
@@ -153,34 +166,24 @@ func (d *Drive) Dfs(path Path) {
 	}
 }
 
+func (d *Drive) ApplyBestPath() {
+	for floor := range d.Grid {
+		move := d.BestPath.Moves[floor]
+		for _, eleve := range d.Elevators[floor] {
+			if move != eleve {
+				d.Grid[floor][eleve] = "X"
+			}
+		}
+		if d.Grid[floor][move] != "^" {
+			d.Grid[floor][move] = "O"
+		}
+	}
+}
+
 type Clone struct {
 	floor     int
 	pos       int
-	direction int  // Init as 1 -> goes to the RIGHT
-	active    bool // When a Clone show up it cant move. Init as false
-}
-
-func (c Clone) Move(Grid [][]string) Clone {
-	tile := Grid[c.floor][c.pos]
-	if tile == "B" {
-		c.direction *= -1
-		c.pos += c.direction
-		return c
-	}
-	if tile == "^" {
-		c.floor += 1
-		return c
-	}
-	c.pos += c.direction
-	if c.pos >= 0 && c.pos <= len(Grid[0])-1 && Grid[c.floor][c.pos] == "B" {
-		c.direction *= -1
-		c.pos += c.direction * 2
-	}
-	return c
-}
-
-func NewClone(d *Drive) Clone {
-	return Clone{0, generatorPos, 1, true}
+	direction int // Init as 1 -> goes to the RIGHT
 }
 
 func PrintClones(clones []Clone) {
@@ -191,31 +194,6 @@ func PrintClones(clones []Clone) {
 	fmt.Fprintln(os.Stderr, str.String())
 }
 
-func Cmd(grid [][]string, clones []Clone, cmd string) []Clone {
-	if len(clones) == 0 {
-		return clones
-	}
-	newClones := make([]Clone, len(clones))
-	leader := clones[0]
-	if cmd == "BLOCK" && leader.active {
-		grid[leader.floor][leader.pos] = "B"
-	}
-	for i, clone := range clones {
-		newClones[i] = clone.Move(grid)
-	}
-	if cmd == "BLOCK" {
-		newClones = newClones[1:]
-	}
-	return newClones
-}
-
-func getLeader(clones []Clone) Clone {
-	if len(clones) > 0 {
-		return clones[0]
-	}
-	return Clone{0, 0, 0, false}
-}
-
 func pruning(clone Clone, drive *Drive) bool {
 	var floor []string
 	if clone.direction == 1 {
@@ -224,73 +202,59 @@ func pruning(clone Clone, drive *Drive) bool {
 		floor = drive.Grid[clone.floor][:clone.pos+1]
 	}
 	for _, v := range floor {
-		if v == "^" || v == "E" || v == "B" {
+		if v == "^" || v == "E" || v == "B" || v == "O" {
 			return false
 		}
 	}
 	return true
 }
 
-func Dfs(drive *Drive, clones []Clone) bool {
-	//PrintClones(clones)
-	//fmt.Println(drive)
-	leader := getLeader(clones)
-	if leader.pos == exitPos && leader.floor == exitFloor && leader.direction != 0 {
-		return true
-	}
-	if drive.Rounds%3 == 0 && len(clones) <= nbTotalClones {
-		clones = append(clones, NewClone(drive))
-	}
-	tile := drive.Grid[leader.floor][leader.pos]
-	drive.Rounds += 1
-	if drive.Rounds > nbRounds {
-		return false
-	}
-	for _, cmd := range [2]string{"WAIT", "BLOCK"} {
-		if cmd == "WAIT" && leader.active && pruning(leader, drive) {
-			continue
-		}
-		newClones := Cmd(drive.Grid, clones, cmd)
-		newLeader := getLeader(newClones)
-		if newLeader.pos < 0 || newLeader.pos > len(drive.Grid[0])-1 {
-			continue
-		}
-		drive.Commands = append(drive.Commands, cmd)
-		if Dfs(drive, newClones) {
-			return true
-		}
-		drive.Commands = drive.Commands[:len(drive.Commands)-1]
-	}
-	drive.Rounds -= 1
-	drive.Grid[leader.floor][leader.pos] = tile
-	return false
-}
-
 func main() {
 	fmt.Scan(&nbFloors, &width, &nbRounds, &exitFloor, &exitPos, &nbTotalClones, &nbAdditionalElevators, &nbElevators)
-	// fmt.Fprintln(os.Stderr, nbFloors, width, nbRounds, exitFloor, exitPos, nbTotalClones, nbAdditionalElevators, nbElevators)
 	elevators := make(map[int][]int)
+	fmt.Fprintln(os.Stderr, nbFloors, width, nbRounds, exitFloor, exitPos, nbTotalClones, nbAdditionalElevators, nbElevators)
 
 	for i := 0; i < nbElevators; i++ {
 		var elevatorFloor, elevatorPos int
 		fmt.Scan(&elevatorFloor, &elevatorPos)
-		// fmt.Fprintln(os.Stderr, elevatorFloor, elevatorPos)
+		fmt.Fprintln(os.Stderr, elevatorFloor, elevatorPos)
 		elevators[elevatorFloor] = append(elevators[elevatorFloor], elevatorPos)
 	}
-
-	var direction string
-	fmt.Scan(&cloneFloor, &generatorPos, &direction) // Only geratorPos is used
-	// fmt.Fprintln(os.Stderr, cloneFloor, generatorPos, direction)
-
-	// fmt.Fprintln(os.Stderr, "Debug messages...")
-	drive := NewDrive(elevators)
-	fmt.Fprintln(os.Stderr, drive)
-	drive.PruneDrive()
-	fmt.Fprintln(os.Stderr, drive)
-	path := Path{0, generatorPos, 1, 0, nbAdditionalElevators, make(map[int]int)}
-	drive.Dfs(path)
-	// Dfs(&drive, make([]Clone, 0, nbTotalClones))
-	// for _, cmd := range drive.Commands {
-	// 	fmt.Println(cmd)
-	// }
+	firstTurn := true
+	var drive *Drive
+	for {
+		var direction string
+		fmt.Scan(&cloneFloor, &generatorPos, &direction)
+		if firstTurn {
+			fmt.Fprintln(os.Stderr, cloneFloor, generatorPos, direction)
+			drive = NewDrive(elevators)
+			fmt.Fprintln(os.Stderr, drive)
+			drive.PruneDrive()
+			fmt.Fprintln(os.Stderr, drive)
+			path := Path{0, generatorPos, 1, 0, nbAdditionalElevators, make(map[int]int)}
+			drive.Dfs(path)
+			drive.ApplyBestPath()
+			fmt.Fprintln(os.Stderr, drive)
+			firstTurn = false
+		}
+		dir := 1
+		if direction == "LEFT" {
+			dir = -1
+		}
+		clone := Clone{cloneFloor, generatorPos, dir}
+		if clone.floor == -1 {
+			fmt.Println("WAIT")
+			continue
+		}
+		if drive.Grid[clone.floor][clone.pos] == "O" {
+			fmt.Println("ELEVATOR")
+			drive.Grid[clone.floor][clone.pos] = "^"
+			continue
+		}
+		if !pruning(clone, drive) {
+			fmt.Println("WAIT")
+		} else {
+			fmt.Println("BLOCK")
+		}
+	}
 }
