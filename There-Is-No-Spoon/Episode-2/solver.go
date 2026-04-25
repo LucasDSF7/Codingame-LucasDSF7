@@ -24,32 +24,19 @@ type Move struct {
 }
 
 type Node struct {
-	Y         int
-	X         int
-	Amount    int
-	Neighbors []*Node
-	Bridges   map[*Node]int
+	Y               int
+	X               int
+	InitAmount      int
+	Amount          int
+	Neighbors       []*Node
+	NumberNeighbors int
+	Bridges         map[*Node]int
 }
 
 func (n *Node) String() string {
 	str := strings.Builder{}
-	fmt.Fprintf(&str, "Y: %d X: %d Links: %d Nº Neighbors: %v\n", n.X, n.Y, n.Amount, len(n.Neighbors))
-	for bridge, number := range n.Bridges {
-		if number > 0 {
-			fmt.Fprintf(&str, "To node Y: %d X: %d Links: %d with %d bridges\n", bridge.Y, bridge.X, bridge.Amount, number)
-		}
-	}
+	fmt.Fprintf(&str, "Y: %d X: %d Links: %d Nº Neighbors: %v Non-zero Neighbors: %d\n", n.X, n.Y, n.Amount, len(n.Neighbors), n.NumberNeighbors)
 	return str.String()
-}
-
-func (n *Node) NumberNeighbors() int {
-	counter := 0
-	for _, node := range n.Neighbors {
-		if node.Amount > 0 {
-			counter += 1
-		}
-	}
-	return counter
 }
 
 func FindNeighbors(nodesMap map[int][]*Node) {
@@ -71,8 +58,15 @@ func Link(move Move) {
 	n.Amount -= move.Amount
 	node.Bridges[n] += move.Amount
 	n.Bridges[node] += move.Amount
-	if move.Amount == 0 {
-		fmt.Println("Littttttleeeeerroyyy Jeykensss")
+	if node.Amount == 0 {
+		for _, neighbor := range node.Neighbors {
+			neighbor.NumberNeighbors -= 1
+		}
+	}
+	if n.Amount == 0 {
+		for _, neighbor := range n.Neighbors {
+			neighbor.NumberNeighbors -= 1
+		}
 	}
 }
 
@@ -80,74 +74,95 @@ func UnLink(moves []Move) {
 	for _, move := range moves {
 		node := move.From
 		n := move.To
+		if node.Amount == 0 {
+			for _, neighbor := range node.Neighbors {
+				neighbor.NumberNeighbors += 1
+			}
+		}
+		if n.Amount == 0 {
+			for _, neighbor := range n.Neighbors {
+				neighbor.NumberNeighbors += 1
+			}
+		}
 		node.Amount += move.Amount
 		n.Amount += move.Amount
 		node.Bridges[n] -= move.Amount
 		n.Bridges[node] -= move.Amount
+		if node.Bridges[n] == 0 {
+			delete(node.Bridges, n)
+		}
+		if n.Bridges[node] == 0 {
+			delete(n.Bridges, node)
+		}
 	}
 	Commands = Commands[:len(Commands)-len(moves)]
 }
 
 func TrivialSolutions(nodes []*Node) []Move {
-	moves := []Move{}
+	var moves []Move
 	for {
 		links := false
 		for _, node := range nodes {
-			if node.Amount == 0 || node.NumberNeighbors() == 0 {
+			if node.Amount == 0 || node.NumberNeighbors == 0 {
 				continue
 			}
-			if node.Amount/node.NumberNeighbors() == 2 {
+			if node.Amount/node.NumberNeighbors == 2 {
 				for _, neighbor := range node.Neighbors {
-					if neighbor.Amount < 2 || node.Bridges[neighbor] != 0 {
+					if neighbor.Amount < 2 || node.Bridges[neighbor] > 0 || neighbor.Amount == 0 {
 						continue
 					}
+					move := Move{node, neighbor, 2}
+					Link(move)
+					moves = append(moves, move)
 					links = true
-					moves = append(moves, Move{node, neighbor, 2})
-					Link(moves[len(moves)-1])
 				}
 				continue
 			}
-			if (node.Amount == 1 || node.Amount == 2) && node.NumberNeighbors() == 1 {
+			if (node.Amount == 1 || node.Amount == 2) && node.NumberNeighbors == 1 {
 				for _, neighbor := range node.Neighbors {
-					if neighbor.Amount < node.Amount || node.Bridges[neighbor]+node.Amount > 2 {
+					if neighbor.Amount < node.Amount || node.Bridges[neighbor]+node.Amount > 2 || neighbor.Amount == 0 {
 						continue
 					}
+					move := Move{node, neighbor, node.Amount}
+					Link(move)
+					moves = append(moves, move)
 					links = true
-					moves = append(moves, Move{node, neighbor, node.Amount})
-					Link(moves[len(moves)-1])
 				}
 				continue
 			}
-			if node.Amount == 3 && node.NumberNeighbors() == 2 {
+			if node.Amount == 3 && node.NumberNeighbors == 2 {
 				for _, neighbor := range node.Neighbors {
-					if neighbor.Amount < 1 || node.Bridges[neighbor] > 1 {
+					if neighbor.Amount == 0 || node.Bridges[neighbor] > 1 {
 						continue
 					}
+					move := Move{node, neighbor, 1}
+					moves = append(moves, move)
+					Link(move)
 					links = true
-					moves = append(moves, Move{node, neighbor, 1})
-					Link(moves[len(moves)-1])
 				}
 				continue
 			}
-			if node.Amount == 5 && node.NumberNeighbors() == 3 {
+			if node.Amount == 5 && node.NumberNeighbors == 3 {
 				for _, neighbor := range node.Neighbors {
-					if neighbor.Amount < 1 || node.Bridges[neighbor] > 1 {
+					if neighbor.Amount == 0 || node.Bridges[neighbor] > 1 {
 						continue
 					}
+					move := Move{node, neighbor, 1}
+					moves = append(moves, move)
+					Link(move)
 					links = true
-					moves = append(moves, Move{node, neighbor, 1})
-					Link(moves[len(moves)-1])
 				}
 				continue
 			}
-			if node.Amount == 7 && node.NumberNeighbors() == 4 {
+			if node.Amount == 7 && node.NumberNeighbors == 4 {
 				for _, neighbor := range node.Neighbors {
-					if neighbor.Amount < 1 || node.Bridges[neighbor] > 1 {
+					if neighbor.Amount == 0 || node.Bridges[neighbor] > 1 {
 						continue
 					}
+					move := Move{node, neighbor, 1}
+					moves = append(moves, move)
+					Link(move)
 					links = true
-					moves = append(moves, Move{node, neighbor, 1})
-					Link(moves[len(moves)-1])
 				}
 				continue
 			}
@@ -157,16 +172,6 @@ func TrivialSolutions(nodes []*Node) []Move {
 		}
 	}
 	return moves
-}
-
-func CheckSolution(nodes []*Node) bool {
-	solveds := 0
-	for _, node := range nodes {
-		if node.Amount == 0 {
-			solveds += 1
-		}
-	}
-	return solveds == len(nodes)
 }
 
 func GetState(nodes []*Node) string {
@@ -180,14 +185,14 @@ func GetState(nodes []*Node) string {
 	return str.String()
 }
 
-func IsUniqueGroup(node *Node, memo map[*Node]struct{}, target int) bool {
-	if len(memo) == target {
+func CheckGroup(node *Node, memo map[*Node]struct{}, target int) bool {
+	if node.Amount > 0 || len(memo) == target { // it can still branch out
 		return true
 	}
 	for neighbor := range node.Bridges {
 		if _, visited := memo[neighbor]; !visited {
 			memo[neighbor] = struct{}{}
-			if IsUniqueGroup(neighbor, memo, target) {
+			if CheckGroup(neighbor, memo, target) {
 				return true
 			}
 		}
@@ -195,24 +200,19 @@ func IsUniqueGroup(node *Node, memo map[*Node]struct{}, target int) bool {
 	return false
 }
 
-func PartialSolution(nodes []*Node) bool {
+func CheckSolution(nodes []*Node) bool {
 	solveds := 0
 	for _, node := range nodes {
 		if node.Amount == 0 {
 			solveds += 1
 		}
 	}
-	return solveds+2 == len(nodes)
+	return solveds == len(nodes)
 }
 
 func DFS(nodes []*Node, turn int) bool {
-	if PartialSolution(nodes) {
-		fmt.Println("{", strings.Join(Commands, "\",\""), "}")
-		fmt.Println()
-		fmt.Println(nodes)
-	}
 	if CheckSolution(nodes) {
-		return IsUniqueGroup(nodes[0], make(map[*Node]struct{}), len(nodes))
+		return CheckGroup(nodes[0], make(map[*Node]struct{}), len(nodes))
 	}
 	stateKey := GetState(nodes)
 	if _, seen := Visited[stateKey]; seen {
@@ -220,8 +220,11 @@ func DFS(nodes []*Node, turn int) bool {
 	}
 	for _, node := range nodes {
 		for _, neighbor := range node.Neighbors {
-			for _, amount := range [2]int{2, 1} {
+			for _, amount := range [1]int{1} {
 				if node.Amount < amount || neighbor.Amount < amount {
+					continue
+				}
+				if node.InitAmount == amount && neighbor.InitAmount == amount && len(node.Neighbors) > 1 {
 					continue
 				}
 				if node.Bridges[neighbor]+amount > 2 {
@@ -231,6 +234,10 @@ func DFS(nodes []*Node, turn int) bool {
 				Link(move)
 				moves := append(TrivialSolutions(nodes), move)
 				if node.Amount < 0 || neighbor.Amount < 0 {
+					UnLink(moves)
+					continue
+				}
+				if node.Amount == 0 && !CheckGroup(node, make(map[*Node]struct{}), len(nodes)) {
 					UnLink(moves)
 					continue
 				}
@@ -272,7 +279,7 @@ func main() {
 				continue
 			}
 			amount, _ := strconv.Atoi(string(node))
-			newNode := &Node{y, x, amount, []*Node{}, map[*Node]int{}}
+			newNode := &Node{y, x, amount, amount, []*Node{}, 0, map[*Node]int{}}
 			Nodes = append(Nodes, newNode)
 			Ynodes[y] = append(Ynodes[y], newNode)
 			Xnodes[x] = append(Xnodes[x], newNode)
@@ -282,8 +289,10 @@ func main() {
 	start := time.Now()
 	FindNeighbors(Xnodes)
 	FindNeighbors(Ynodes)
+	for _, node := range Nodes {
+		node.NumberNeighbors = len(node.Neighbors)
+	}
 	//TrivialSolutions(Nodes)
-	fmt.Println(Nodes)
 	fmt.Fprintln(os.Stderr, time.Since(start))
 	sort.Slice(Nodes, func(i, j int) bool {
 		return Nodes[i].Amount < Nodes[j].Amount
@@ -296,4 +305,5 @@ func main() {
 		fmt.Println(cmd)
 	}
 	// fmt.Fprintln(os.Stderr, "Debug messages...")
+	fmt.Fprintln(os.Stderr, "{", strings.Join(Commands, "\",\""), "}")
 }
